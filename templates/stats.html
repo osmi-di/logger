@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Статистика {{ link_id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Статистика: {{ link_id }}</h1>
+        
+        <div class="section">
+            <h2>🔗 Ваша отслеживаемая ссылка</h2>
+            <div class="tracking-link-box">
+                <input type="text" id="trackingUrl" value="{{ tracking_url }}" readonly>
+                <button onclick="copyToClipboard()" class="btn-copy">📋 Копировать</button>
+            </div>
+            <p class="hint">Поделитесь этой ссылкой для отслеживания переходов</p>
+        </div>
+
+        <div class="section">
+            <h2>📈 Основная статистика</h2>
+            <a href="/export/{{ link_id }}/csv" class="btn-export">📥 Экспорт в CSV</a>
+            <div class="stats-grid">
+                <div class="stat-box total-clicks">
+                    <h3>Всего переходов</h3>
+                    <p>{{ stats[0][0] if stats else 0 }}</p>
+                </div>
+                <div class="stat-box unique-visitors">
+                    <h3>Уникальных посетителей</h3>
+                    <p>{{ stats[0][1] if stats else 0 }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🗺️ Карта переходов</h2>
+            <div id="map"></div>
+            <p class="hint">Точность зависит от разрешенных данных геолокации</p>
+        </div>
+
+        <div class="section">
+            <h2>🕒 Последние переходы</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Время</th>
+                            <th>IP</th>
+                            <th>Страна</th>
+                            <th>Устройство</th>
+                            <th>Браузер</th>
+                            <th>Координаты</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log[9] }}</td>
+                            <td>{{ log[2] }}</td>
+                            <td>{{ log[3] }}</td>
+                            <td>{{ log[4] }}</td>
+                            <td>{{ log[5] }}</td>
+                            <td>
+                                {% if log[7] and log[8] %}
+                                    {{ "%.4f, %.4f"|format(log[7], log[8]) }}
+                                {% else %}
+                                    Н/Д
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU" 
+            type="text/javascript"></script>
+    <script>
+    function copyToClipboard() {
+        const copyText = document.getElementById("trackingUrl");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        document.execCommand("copy");
+        alert("Ссылка скопирована: " + copyText.value);
+    }
+
+    ymaps.ready(initMap);
+
+    function initMap() {
+        try {
+            const map = new ymaps.Map('map', {
+                center: [55.751574, 37.573856],
+                zoom: 3,
+                controls: ['zoomControl', 'typeSelector']
+            });
+
+            {% for log in logs %}
+                {% if log[7] is not none and log[8] is not none %}
+                    const placemark{{ loop.index }} = new ymaps.Placemark(
+                        [{{ log[7] }}, {{ log[8] }}],
+                        {
+                            balloonContent: `
+                                <div class="balloon-content">
+                                    <b>📅 Дата:</b> {{ log[9] }}<br>
+                                    <b>🌐 IP:</b> {{ log[2] }}<br>
+                                    <b>🖥️ Устройство:</b> {{ log[4] }}<br>
+                                    <b>🧭 Браузер:</b> {{ log[5] }}
+                                </div>
+                            `
+                        },
+                        {
+                            preset: 'islands#redIcon',
+                            balloonCloseButton: true
+                        }
+                    );
+                    map.geoObjects.add(placemark{{ loop.index }});
+                {% endif %}
+            {% endfor %}
+
+            if (map.geoObjects.getLength() > 0) {
+                map.setBounds(map.geoObjects.getBounds());
+            }
+        } catch (error) {
+            console.error('Ошибка инициализации карты:', error);
+        }
+    }
+    </script>
+</body>
+</html>
